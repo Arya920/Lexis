@@ -1,0 +1,9 @@
+RAG Mode - 
+
+which team is currently at the top of the IPL table ?
+which team is currently at the bottom of the IPL table ?
+what is the age of Arjun Patel ?
+provide only top 5 skills available in my resume ?
+
+Web Search mode - 
+which team is currently at the top of table in IPL 2026 ?

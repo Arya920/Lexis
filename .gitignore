@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+Dockerfile
+data/
+configurations/
+Notebooks/
+setup.py
+__init__.py
+roadblocks/
+process_docs/
