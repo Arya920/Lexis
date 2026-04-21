@@ -2,12 +2,13 @@ import os
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 
-from config.settings import UPLOAD_DIR
-from services.ingestion import process_pdf
+from config.settings import UPLOAD_DIR, CHUNK_STORE_PATH, VECTOR_DB_PATH
+from services.ingestion import process_pdf, _save_chunk_store, _build_documents
 from services.retrieval import retrieve_docs
 from services.generation import AnswerGenerator
 from services.tavily_search import TavilySearch
-
+from services.embeddings import get_embedding_model
+from langchain_community.vectorstores import FAISS
 
 # =========================
 # App Initialization
@@ -25,7 +26,7 @@ def create_app():
 
     @app.route("/")
     def index():
-        return render_template("index3.html")
+        return render_template("index4.html")
 
     @app.route("/files", methods=["GET"])
     def list_files():
@@ -66,6 +67,52 @@ def create_app():
                 "filename": filename,
                 "chunks": result["chunks"]
             })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        
+    @app.route("/remove-file", methods=["POST"])
+    def remove_file():
+        try:
+            data = request.json
+            filename = data.get("filename")
+
+            if not filename:
+                return jsonify({"error": "Filename required"}), 400
+
+            file_path = os.path.join(UPLOAD_DIR, filename)
+
+            # Step 1: delete file
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+            if os.path.exists(CHUNK_STORE_PATH):
+                import json
+                with open(CHUNK_STORE_PATH, "r", encoding="utf-8") as f:
+                    chunks = json.load(f)
+
+                # filter out chunks of this file
+                filtered_chunks = [
+                    c for c in chunks
+                    if c["metadata"].get("source") != filename
+                ]
+
+                # save updated chunks
+                _save_chunk_store(filtered_chunks)
+
+                # Step 3: rebuild FAISS ONLY from remaining chunks
+                if filtered_chunks:
+                    documents = _build_documents(filtered_chunks)
+                    embedding_model = get_embedding_model()
+                    db = FAISS.from_documents(documents, embedding_model)
+                    db.save_local(VECTOR_DB_PATH)
+                else:
+                    # if no chunks left → delete index
+                    import shutil
+                    shutil.rmtree(VECTOR_DB_PATH)
+                    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
+
+            return jsonify({"message": f"{filename} removed successfully"})
 
         except Exception as e:
             return jsonify({"error": str(e)}), 500
