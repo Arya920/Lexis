@@ -31,7 +31,7 @@
 # }
 
 # headers = {
-#     "Authorization": "Bearer sk-fe26772647934e8096ebab250584067e",
+#     "Authorization": "Bearer xxxxxxxx",
 #     "Content-Type": "application/json"
 # }
 
