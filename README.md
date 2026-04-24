@@ -1,4 +1,21 @@
+---
+license: mit
+title: LEXIS
+sdk: docker
+emoji: 🚀
+colorFrom: indigo
+colorTo: indigo
+short_description: production-grade AI-powered chatbot
+---
 # Lexis — Knowledge Assistant
+
+<div align="center">
+
+![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
+![Flask](https://img.shields.io/badge/flask-2.0+-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
+</div>
 
 Lexis is a modern, production-grade AI-powered chatbot and knowledge assistant. It supports document ingestion, retrieval-augmented generation (RAG), web search, and direct LLM chat, with a beautiful React-based frontend and a robust Flask backend. This README provides a comprehensive overview for developers and AI tools to understand, extend, or modify the project.
 

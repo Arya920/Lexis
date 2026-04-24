@@ -491,6 +491,8 @@
 
     const currentSession = sessions.find(s => s.id === activeId) || null;
     const msgs = currentSession ? currentSession.msgs : [];
+    
+    const [deletingDoc, setDeletingDoc] = useState(false);
 
     const setMsgs = fn => setSessions(prev =>
       prev.map(s => s.id === activeId
@@ -639,16 +641,39 @@
 
     /* ── remove doc ── */
     const confirmRemoveDoc = async () => {
-      const doc = modal?.doc; if (!doc) return;
-      setModal(null);
+      const doc = modal?.doc;
+      if (!doc) return;
+
+      setDeletingDoc(true);
+
       try {
-        await fetch('/remove-file', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ filename: doc.name }) });
+        // Optimistic UI
+        setDocs(prev => prev.filter(d => d.name !== doc.name));
+
+        const res = await fetch('/remove-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: doc.name })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Delete failed");
+        }
+
         await loadDocs();
-        notify(`"${doc.name}" removed from RAG`);
-      } catch {
-        // optimistic remove
-        setDocs(prev => prev.filter(d => d.id !== doc.id));
-        notify(`"${doc.name}" removed (placeholder)`, 'warn');
+
+        setModal(null);
+        notify(`"${doc.name}" removed from knowledge base`);
+
+      } catch (err) {
+        console.error(err);
+        await loadDocs();
+
+        notify(`Failed to remove "${doc.name}"`, 'err');
+      } finally {
+        setDeletingDoc(false);
       }
     };
 
@@ -892,16 +917,44 @@
 
         {/* FIX 4: Remove doc modal */}
         {modal?.type === 'remove-doc' && (
-          <div className="backdrop" onClick={()=>setModal(null)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-icon warn"><i className="fas fa-file-xmark"/></div>
-              <div className="modal-title">Remove from RAG memory?</div>
-              <div className="modal-body">This will unindex the file. The model will no longer retrieve information from it during queries.</div>
-              <div className="modal-fname">{modal.doc?.name}</div>
-              <div className="modal-row">
-                <button className="m-btn" onClick={()=>setModal(null)}>Cancel</button>
-                <button className="m-btn danger" onClick={confirmRemoveDoc}>Remove file</button>
+          <div className="backdrop" onClick={() => !deletingDoc && setModal(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+
+              <div className="modal-icon warn">
+                <i className="fas fa-file-xmark"/>
               </div>
+
+              <div className="modal-title">
+                {deletingDoc ? "Removing file..." : "Remove from RAG memory?"}
+              </div>
+
+              <div className="modal-body">
+                {deletingDoc
+                  ? "Please wait while we update the knowledge base."
+                  : "This will unindex the file. The model will no longer retrieve information from it during queries."
+                }
+              </div>
+
+              <div className="modal-fname">{modal.doc?.name}</div>
+
+              <div className="modal-row">
+                {!deletingDoc ? (
+                  <>
+                    <button className="m-btn" onClick={() => setModal(null)}>
+                      Cancel
+                    </button>
+                    <button className="m-btn danger" onClick={confirmRemoveDoc}>
+                      Remove file
+                    </button>
+                  </>
+                ) : (
+                  <button className="m-btn" disabled>
+                    <i className="fas fa-spinner fa-spin" style={{marginRight:6}}/>
+                    Deleting...
+                  </button>
+                )}
+              </div>
+
             </div>
           </div>
         )}
