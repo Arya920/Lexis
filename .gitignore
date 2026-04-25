@@ -3,6 +3,7 @@
 __pycache__/
 Dockerfile
 data/
+Logs/
 configurations/
 Notebooks/
 setup.py

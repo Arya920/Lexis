@@ -2,15 +2,41 @@ import os
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 
-from config.settings import UPLOAD_DIR, CHUNK_STORE_PATH, VECTOR_DB_PATH, DATASETS_DIR
+from config.settings import (
+    UPLOAD_DIR,
+    CHUNK_STORE_PATH,
+    VECTOR_DB_PATH,
+    DATASETS_DIR,
+    GENERATION_MODEL_NAME,
+)
 from services.ingestion import process_pdf, _save_chunk_store, _build_documents
 from services.retrieval import retrieve_docs
 from services.generation import AnswerGenerator
 from services.tavily_search import TavilySearch
 from services.embeddings import get_embedding_model
-from agents.visualization_agent import run_visualization_agent
+from services.query_logging import begin_query_log, reset_query_log, write_query_log
+from agents.data_visualization_agent import run_visualization_agent
 from agents.data_analysis_agent import run_data_analysis_agent
 from langchain_community.vectorstores import FAISS
+
+
+def _visualization_text_output(result):
+    if result.get("success"):
+        return result.get("summary", "")
+    return result.get("error", "")
+
+
+def _analysis_text_output(result):
+    if not result.get("success"):
+        return result.get("error", "")
+
+    parts = [
+        result.get("headline", ""),
+        result.get("narrative", ""),
+        "\n".join(result.get("key_findings", [])),
+        result.get("recommendation") or "",
+    ]
+    return "\n\n".join(part for part in parts if part)
 
 # =========================
 # App Initialization
@@ -215,7 +241,24 @@ def create_app():
                     "error": "No dataset filename provided. Please upload a dataset first using the sidebar."
                 }), 400
 
+            log_token = begin_query_log()
             result = run_visualization_agent(query=query, filename=filename)
+            write_query_log(
+                query=query,
+                endpoint="/agent/visualize",
+                use_case="data_visualization",
+                response_text=_visualization_text_output(result),
+                status="success" if result.get("success") else "error",
+                model_name=GENERATION_MODEL_NAME,
+                metadata={
+                    "filename": filename,
+                    "rows": result.get("rows"),
+                    "columns": result.get("columns"),
+                    "chart_type": (result.get("plan") or {}).get("chart", {}).get("type"),
+                },
+            )
+            reset_query_log(log_token)
+            log_token = None
             return jsonify(result)
 
         except Exception as e:
@@ -257,7 +300,24 @@ def create_app():
                     "error": "No dataset filename provided. Please upload a dataset first using the sidebar."
                 }), 400
  
+            log_token = begin_query_log()
             result = run_data_analysis_agent(query=query, filename=filename)
+            write_query_log(
+                query=query,
+                endpoint="/agent/analyze",
+                use_case="data_analysis",
+                response_text=_analysis_text_output(result),
+                status="success" if result.get("success") else "error",
+                model_name=GENERATION_MODEL_NAME,
+                metadata={
+                    "filename": filename,
+                    "rows": result.get("rows"),
+                    "columns": result.get("columns"),
+                    "operations": result.get("operations", []),
+                },
+            )
+            reset_query_log(log_token)
+            log_token = None
             return jsonify(result)
  
         except Exception as e:
@@ -269,6 +329,8 @@ def create_app():
 
     @app.route("/chat", methods=["POST"])
     def chat():
+        log_token = None
+        query = ""
         try:
             data            = request.json or {}
             query           = data.get("message", "").strip()
@@ -278,6 +340,8 @@ def create_app():
             if not query:
                 return jsonify({"response": "Empty query received.", "sources": []})
 
+            log_token = begin_query_log()
+
             # CASE 1: Web Search Mode
             if web_search_mode and not rag_mode:
                 web_result = tavily.search(query)
@@ -286,12 +350,34 @@ def create_app():
                 if web_result.get("source"):
                     sources.append({"label": web_result["source"]})
                 answer = generator.generate_web(query, context)
+                write_query_log(
+                    query=query,
+                    endpoint="/chat",
+                    use_case="web_search_chat",
+                    response_text=answer,
+                    model_name=GENERATION_MODEL_NAME,
+                    metadata={"sources": sources},
+                )
+                reset_query_log(log_token)
+                log_token = None
                 return jsonify({"response": answer, "sources": sources})
 
             # CASE 2: RAG Mode
             if rag_mode:
                 docs = retrieve_docs(query)
                 if not docs:
+                    answer = "No relevant documents found."
+                    write_query_log(
+                        query=query,
+                        endpoint="/chat",
+                        use_case="rag_chat",
+                        response_text=answer,
+                        status="no_results",
+                        model_name=GENERATION_MODEL_NAME,
+                        metadata={"sources": []},
+                    )
+                    reset_query_log(log_token)
+                    log_token = None
                     return jsonify({"response": "No relevant documents found.", "sources": []})
 
                 context_blocks = []
@@ -315,14 +401,47 @@ def create_app():
 
                 context = "\n\n".join(context_blocks)
                 answer  = generator.generate_rag(query, context)
+                write_query_log(
+                    query=query,
+                    endpoint="/chat",
+                    use_case="rag_chat",
+                    response_text=answer,
+                    model_name=GENERATION_MODEL_NAME,
+                    metadata={"sources": sources},
+                )
+                reset_query_log(log_token)
+                log_token = None
                 return jsonify({"response": answer, "context_used": context, "sources": sources})
 
             # CASE 3: Direct LLM Mode
             answer = generator.generate_direct(query)
+            write_query_log(
+                query=query,
+                endpoint="/chat",
+                use_case="direct_chat",
+                response_text=answer,
+                model_name=GENERATION_MODEL_NAME,
+                metadata={"sources": []},
+            )
+            reset_query_log(log_token)
+            log_token = None
             return jsonify({"response": answer, "sources": []})
 
         except Exception as e:
-            return jsonify({"response": f"⚠ Error: {str(e)}", "sources": []}), 500
+            error_response = f"⚠ Error: {str(e)}"
+            if log_token is not None:
+                write_query_log(
+                    query=query,
+                    endpoint="/chat",
+                    use_case="chat_error",
+                    response_text=error_response,
+                    status="error",
+                    model_name=GENERATION_MODEL_NAME,
+                    metadata={"error": str(e)},
+                )
+                reset_query_log(log_token)
+                log_token = None
+            return jsonify({"response": error_response, "sources": []}), 500
 
     return app
 
@@ -332,4 +451,4 @@ def create_app():
 # =========================
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=False)
+    app.run(debug=True)

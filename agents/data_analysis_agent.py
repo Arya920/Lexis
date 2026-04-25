@@ -48,6 +48,7 @@ import numpy as np
 import pandas as pd
 from langchain.chat_models import init_chat_model
 from dotenv import load_dotenv
+from services.query_logging import record_llm_call
 
 load_dotenv()
 
@@ -173,6 +174,12 @@ def _plan_analysis(schema: str, query: str) -> list[dict]:
     ]
     response = llm.invoke(messages)
     raw = response.content.strip()
+    record_llm_call(
+        use_case="data_analysis_plan",
+        output_text=raw,
+        response=response,
+        model_name=GENERATION_MODEL_NAME,
+    )
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$",          "", raw)
     raw = raw.strip()
@@ -458,6 +465,12 @@ def _interpret_results(query: str, results: list[dict], df: pd.DataFrame) -> dic
 
     response = llm.invoke(messages)
     raw = response.content.strip()
+    record_llm_call(
+        use_case="data_analysis_interpretation",
+        output_text=raw,
+        response=response,
+        model_name=GENERATION_MODEL_NAME,
+    )
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$",          "", raw)
     raw = raw.strip()
