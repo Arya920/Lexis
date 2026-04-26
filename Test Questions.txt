@@ -32,11 +32,6 @@ Westpac Mortgage Lending Guide.pdf -
 6. What interest rate applies to a Personal Temporary Overdraft? 
 
 Loan dataset.csv-
-visualization questions 
-1. Create a bar chart with Education on the X-axis and average Loan_Amount_Requested on the Y-axis.
-2. Create a bar chart showing count of Loan_Approval_Status.
-3. Create a pie chart showing distribution of Loan_Type.
-
 Data analysis questions 
 1. Which Employment_Status group has the highest average Annual_Income?
 2. What is the average Interest_Rate for each Loan_Type?
@@ -45,13 +40,17 @@ Data analysis questions
 
 
 Mortgage Consumer Complaints.csv
-visualization questions
-1. Plot a line chart showing monthly complaint trends
-2. Create a stacked bar chart showing complaints by State and Issue.
-3. Create a bar chart for top 10 Companies by complaint count.
-4. Generate a heatmap of complaints across State and Issue. (some valus are empty as maybe due to missing values so you can skip it or maybe show it as an example)
-
 Data analysis questions
 1. Which states have unusually high complaints relative to others?
 2. How many complaints are there per Company?
 3. Which Issue category has the highest complaint count?
+
+
+
+Data Visualization Questions ~
+/create-visualization-agent Plot a line chart showing total complaints over time by extracting month from Date and summing complaint counts.
+/create-visualization-agent Create a bar chart showing average Interest_Rate by Loan_Type.
+/create-visualization-agent Create a stacked bar chart showing total complaints by State, split by Issue.
+/create-visualization-agent Create a pie chart showing total Loan_Amount_Requested by Loan_Type.
+/create-visualization-agent Create a horizontal bar chart showing top 10 Employment_Status by average Annual_Income.
+/create-visualization-agent Create a scatter plot showing relationship between Credit_Score and Loan_Amount_Requested, colored by Loan_Type.
