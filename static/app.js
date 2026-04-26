@@ -55,6 +55,12 @@ const SUGGESTIONS = [
   'Compare the two documents',
 ];
 
+/* ── Available Groq models ──────────────────────────────────── */
+const MODELS = [
+  { id: 'llama-3.1-8b-instant',    label: 'Llama 3.1 · 8B',    tag: 'fast'    },
+  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 · 70B',   tag: 'smart'   },
+];
+
 /* ── Local storage helper ───────────────────────────────────── */
 const LS = {
   get: (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } },
@@ -425,6 +431,9 @@ function App() {
   const [showDatasetModal, setShowDatasetModal] = useState(false);
   const [pendingAgent,     setPendingAgent]      = useState(null);
 
+  const [selectedModel,    setSelectedModel]    = useState(MODELS[0].id);
+  const [modelSwitching,   setModelSwitching]   = useState(false);
+
   const endRef   = useRef(null);
   const taRef    = useRef(null);
   const toastTmr = useRef(null);
@@ -480,11 +489,45 @@ function App() {
   }, []);
   useEffect(() => { loadDatasets(); }, [loadDatasets]);
 
+  /* ── Load current model from backend ── */
+  useEffect(() => {
+    fetch('/model')
+      .then(r => r.json())
+      .then(d => {
+        if (d.model && MODELS.find(m => m.id === d.model)) {
+          setSelectedModel(d.model);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   /* ── Toast ── */
   const notify = (text, kind = 'ok') => {
     clearTimeout(toastTmr.current);
     setToast({ text, kind });
     toastTmr.current = setTimeout(() => setToast(null), 2800);
+  };
+
+  /* ── Switch model ── */
+  const switchModel = async (modelId) => {
+    if (modelId === selectedModel || modelSwitching) return;
+    setModelSwitching(true);
+    try {
+      const res  = await fetch('/model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: modelId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Switch failed');
+      setSelectedModel(modelId);
+      const m = MODELS.find(m => m.id === modelId);
+      notify(`Model → ${m?.label || modelId}`);
+    } catch (err) {
+      notify(`Failed: ${err.message}`, 'err');
+    } finally {
+      setModelSwitching(false);
+    }
   };
 
   /* ── Sessions ── */
@@ -708,7 +751,7 @@ function App() {
             <div className="brand-icon"><i className="fas fa-circle-nodes" /></div>
             <div className="brand-info">
               <div className="brand-name">Lexis</div>
-              <div className="brand-sub">knowledge assistant · v2</div>
+              <div className="brand-sub"> Knowledge AI · TCS ❤️ · v1.0.4β </div>
             </div>
           </div>
 
@@ -863,6 +906,10 @@ function App() {
               <span className={`tb-badge ${ragMode ? 'green' : 'muted'}`}>{ragMode ? 'RAG' : 'direct'}</span>
               {webSearch && <span className="tb-badge amber">web</span>}
               {isAgentic  && <span className="tb-badge purple">agentic</span>}
+              <span className="tb-badge accent" title={`Model: groq:${selectedModel}`}>
+                <i className="fas fa-microchip" style={{ marginRight: 3 }} />
+                {MODELS.find(m => m.id === selectedModel)?.label || selectedModel}
+              </span>
               {activeDataset && (
                 <span className="tb-badge amber" title={`Active: ${activeDataset}`}>
                   <i className="fas fa-table" style={{ marginRight: 3 }} />{activeDataset}
@@ -991,6 +1038,22 @@ function App() {
                 }} title="Toggle agentic mode">
                 <i className="fas fa-robot" /> Agentic
               </button>
+
+              {/* ── Model selector ── */}
+              <div className="model-selector-wrap" title="Switch LLM">
+                <i className={`fas fa-microchip model-sel-icon ${modelSwitching ? 'fa-spin' : ''}`} />
+                <select
+                  className="model-selector"
+                  value={selectedModel}
+                  disabled={modelSwitching}
+                  onChange={e => switchModel(e.target.value)}
+                >
+                  {MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+                <i className="fas fa-chevron-down model-sel-caret" />
+              </div>
               {activeDataset && (
                 <div className="strip-dataset">
                   <i className="fas fa-table" />
