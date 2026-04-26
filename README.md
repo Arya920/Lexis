@@ -276,5 +276,13 @@ MIT License
 - Authors: Arya Chakraborty
 
 ---
+## Version
+- 1.0.0 - Basic Rag without reranking
+- 1.0.1 - Improved Rag with reranking + web search option
+- 1.0.2 - Rag with Data analytics agent
+- 1.0.3 - Introducing Data visualization agent
+- 1.0.4 - Multi model availability
+
+---
 
 *This README is designed to be fully self-sufficient for AI tools and developers to understand, extend, or generate new features/code for Lexis.*
