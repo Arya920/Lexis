@@ -33,17 +33,17 @@ Westpac Mortgage Lending Guide.pdf -
 
 Loan dataset.csv-
 Data analysis questions 
-1. Which Employment_Status group has the highest average Annual_Income?
-2. What is the average Interest_Rate for each Loan_Type?
-3. Does Credit_Score influence Default_Risk?
-4.  Do applicants with Co-Applicant have higher Loan_Approval_Status rates?
+1. /data-analysis-agent Which Employment_Status group has the highest average Annual_Income?
+2. /data-analysis-agent What is the average Interest_Rate for each Loan_Type?
+3. /data-analysis-agent Does Credit_Score influence Default_Risk?
+4. /data-analysis-agent Do applicants with Co-Applicant have higher Loan_Approval_Status rates?
 
 
 Mortgage Consumer Complaints.csv
 Data analysis questions
-1. Which states have unusually high complaints relative to others?
-2. How many complaints are there per Company?
-3. Which Issue category has the highest complaint count?
+1. /data-analysis-agent  Which states have unusually high complaints relative to others?
+2. /data-analysis-agent How many complaints are there per Company?
+3. /data-analysis-agent Which Issue category has the highest complaint count?
 
 
 
