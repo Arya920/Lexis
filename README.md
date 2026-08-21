@@ -2,287 +2,233 @@
 license: mit
 title: LEXIS
 sdk: docker
-emoji: 🚀
+emoji: rocket
 colorFrom: indigo
 colorTo: indigo
-short_description: production-grade AI-powered chatbot
----
-# Lexis — Knowledge Assistant
-
-<div align="center">
-
-![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
-![Flask](https://img.shields.io/badge/flask-2.0+-green.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-
-</div>
-
-Lexis is a modern, production-grade AI-powered chatbot and knowledge assistant. It supports document ingestion, retrieval-augmented generation (RAG), web search, and direct LLM chat, with a beautiful React-based frontend and a robust Flask backend. This README provides a comprehensive overview for developers and AI tools to understand, extend, or modify the project.
-
+short_description: Nexus AI platform with the Lexis RAG and agentic chatbot
 ---
 
-## Table of Contents
-- [Features](#features)
-- [Architecture Overview](#architecture-overview)
-- [Directory Structure](#directory-structure)
-- [Setup & Installation](#setup--installation)
-- [Configuration](#configuration)
-- [Backend Services](#backend-services)
-  - [app.py (Flask App)](#apppy-flask-app)
-  - [services/](#services)
-- [Frontend](#frontend)
-- [API Endpoints](#api-endpoints)
-- [Adding New Features](#adding-new-features)
-- [Dependencies](#dependencies)
-- [License](#license)
+# Nexus + Lexis
 
----
+Lexis is the live chatbot application inside the Nexus AI Intelligence Platform. Nexus serves the platform homepage at `/`, and Lexis runs at `/lexis` as a conversational workspace for direct LLM chat, document-grounded RAG, web search, dataset analysis, and data visualization.
 
-## Features
-- **Conversational AI Chatbot** (LLM-based, supports direct, RAG, and web search modes)
-- **Document Upload & Ingestion** (PDFs, chunking, vector storage)
-- **Hybrid Retrieval** (Semantic + Keyword/BM25 + Reranking)
-- **Web Search Integration** (Tavily API)
-- **Session Management** (multi-session chat, local storage)
-- **Rich UI** (React 18, dark/light mode, agentic features)
-- **Extensible Prompt Templates**
-- **Database Connector (MySQL)** (for future data/analytics features)
+The project is a Flask backend with a no-build React 18 frontend loaded from Jinja templates. Backend capabilities are split into service modules for RAG, generation, search, and agent execution, so new workflows can be added without turning `app.py` into the whole application.
 
----
+## Current Capabilities
 
-## Architecture Overview
+- Nexus landing page at `/` with Lexis as the featured live application.
+- Lexis chatbot at `/lexis` with persistent browser sessions through `localStorage`.
+- Direct LLM chat through Groq-backed LangChain chat models.
+- Runtime model switching between configured Groq models.
+- PDF upload, chunking, FAISS indexing, and hybrid retrieval.
+- RAG answers with source metadata, page numbers, hybrid scores, and rerank scores.
+- Web search mode through Tavily.
+- Dataset upload and management for CSV, XLSX, and XLS files.
+- Agentic slash commands for dataset analysis and chart generation.
+- Plotly chart rendering in the Lexis UI.
+- Backend summarization agent for PDF and tabular files.
+
+## Application Flow
 
 ```mermaid
-graph TD;
-  User[User (Browser)] -->|React UI| FlaskApp[Flask Backend]
-  FlaskApp -->|/chat| LLM[LLM (via LangChain)]
-  FlaskApp -->|/upload| Ingestion[PDF Ingestion]
-  FlaskApp -->|/files| FileList[File Listing]
-  FlaskApp -->|/remove-file| FileRemove[File Removal]
-  FlaskApp -->|/chat (RAG)| Retrieval[Hybrid Retrieval]
-  FlaskApp -->|/chat (Web)| WebSearch[Tavily API]
-  FlaskApp -->|VectorStore| FAISS[FAISS Vector DB]
-  FlaskApp -->|Prompts| Prompts[Prompt Templates]
+flowchart TD
+  Browser["Browser"] --> Nexus["GET / -> templates/home.html"]
+  Nexus --> LexisLink["Launch Lexis"]
+  LexisLink --> LexisPage["GET /lexis -> templates/lexis/index.html"]
+  LexisPage --> ReactApp["React UI: Lexis chat shell"]
+
+  ReactApp --> Chat["POST /chat"]
+  Chat --> Direct["Direct LLM answer"]
+  Chat --> RAG["RAG retrieval + LLM answer"]
+  Chat --> Web["Tavily search + LLM answer"]
+
+  ReactApp --> Docs["/upload /files /remove-file"]
+  Docs --> Ingestion["PDF ingestion and chunking"]
+  Ingestion --> VectorDB["FAISS index + chunks.json"]
+  VectorDB --> RAG
+
+  ReactApp --> Datasets["/upload-dataset /datasets /remove-dataset"]
+  Datasets --> DatasetStore["data/datasets"]
+  ReactApp --> Agents["POST /agent/analyze or /agent/visualize"]
+  DatasetStore --> Agents
+  Agents --> AgentResult["Structured insight or Plotly figure"]
 ```
 
----
+## Runtime Routes
 
-## Directory Structure
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/` | GET | Nexus platform homepage. |
+| `/lexis` | GET | Lexis chatbot UI. |
+| `/model` | GET | Return the currently selected generation model. |
+| `/model` | POST | Switch the Groq model used by `AnswerGenerator`. |
+| `/chat` | POST | Main chat endpoint for direct, RAG, and web-search responses. |
+| `/files` | GET | List uploaded PDF knowledge-base files. |
+| `/upload` | POST | Upload a PDF and rebuild the FAISS knowledge base. |
+| `/remove-file` | POST | Delete a PDF and rebuild or clear the FAISS index. |
+| `/datasets` | GET | List uploaded CSV/Excel datasets for agents. |
+| `/upload-dataset` | POST | Save a CSV/Excel file for agent workflows. |
+| `/remove-dataset` | POST | Delete a dataset file. |
+| `/agent/analyze` | POST | Run the data analysis agent on a selected dataset. |
+| `/agent/visualize` | POST | Run the visualization agent and return a Plotly figure. |
+| `/agent/summarize` | POST | Run the summarization agent for PDF or tabular files. |
 
+## Chat Execution
+
+The Lexis frontend sends normal messages to `/chat` with this payload shape:
+
+```json
+{
+  "message": "User question",
+  "rag": true,
+  "web_search": false,
+  "agent_mode": false,
+  "agent": null
+}
 ```
-Lexis/
-├── app.py                # Main Flask app
-├── requirements.txt      # Python dependencies
-├── config/
-│   └── settings.py       # All config variables
-├── data/
-│   ├── uploads/          # Uploaded PDFs
-│   └── vectordb/         # FAISS index, chunk store
-├── services/             # All backend logic
-│   ├── db_connector.py   # MySQL DB connector
-│   ├── embeddings.py     # Embedding/reranker models
-│   ├── generation.py     # LLM answer generation
-│   ├── ingestion.py      # PDF chunking & storage
-│   ├── prompts.py        # Prompt templates
-│   ├── retrieval.py      # Hybrid retrieval logic
-│   └── tavily_search.py  # Web search API
-├── static/
-│   ├── app.js            # React frontend (single file)
-│   └── style.css         # App styles
-├── templates/
-│   └── index4.html       # Main HTML (mounts React)
-└── ...
+
+`app.py` then chooses one of three paths:
+
+1. **Web search path**: if `web_search` is enabled and `rag` is disabled, `TavilySearch.search()` fetches the top web result, then `AnswerGenerator.generate_web()` rewrites that context into a concise answer.
+2. **RAG path**: if `rag` is enabled, `retrieve_docs()` loads the FAISS index and chunk store, combines semantic similarity with BM25 keyword scoring, reranks candidates with a CrossEncoder, and sends the final context to `AnswerGenerator.generate_rag()`.
+3. **Direct path**: if neither mode is active, `AnswerGenerator.generate_direct()` answers without retrieval context.
+
+The response always returns a `response` string and a `sources` array. RAG responses also include `context_used` for debugging or inspection.
+
+## RAG Flow
+
+PDF files uploaded through `/upload` are stored in `data/uploads`. `services.ingestion.process_pdf()` loads pages with `PyPDFLoader`, splits text with `RecursiveCharacterTextSplitter`, writes chunk records to `data/vectordb/chunks.json`, and rebuilds the FAISS index in `data/vectordb`.
+
+When a RAG query arrives, `services.retrieval.retrieve_docs()`:
+
+1. Expands the query for known project-specific aliases.
+2. Loads FAISS plus `chunks.json`.
+3. Runs semantic vector search.
+4. Builds an in-memory BM25 index for keyword scoring.
+5. Normalizes and combines semantic and keyword scores.
+6. Reranks the candidate pool with `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+7. Returns the top documents with metadata for source chips in the UI.
+
+## Agentic Flow
+
+Lexis exposes agent mode in the chat input. Typing `/` opens an autocomplete list of agents. The currently wired frontend dispatch is:
+
+- `/create-visualization-agent`: requires a selected CSV/Excel dataset, calls `/agent/visualize`, and renders the returned Plotly figure.
+- `/data-analysis-agent`: requires a selected CSV/Excel dataset, calls `/agent/analyze`, and renders a structured analysis card with headline, findings, recommendation, operation status, and a primary table.
+- Other slash agents currently fall back through the normal `/chat` path unless explicitly wired in the frontend.
+
+The backend also includes `/agent/summarize`, powered by `agents/Summarization_agent.py`. It supports PDF summaries from the RAG upload folder and CSV/Excel summaries from the dataset folder.
+
+### Data Analysis Agent
+
+`agents/data_analysis_agent.py` uses a two-pass LLM workflow with deterministic pandas execution:
+
+1. Build a schema summary from the selected dataset.
+2. Ask the LLM for a JSON analysis plan.
+3. Execute only whitelisted pandas operations such as grouping, ranking, distributions, outliers, and correlations.
+4. Send computed results back to the LLM for interpretation.
+5. Return structured JSON for the React analysis card.
+
+No arbitrary LLM-generated Python is executed.
+
+### Visualization Agent
+
+`agents/data_visualization_agent.py` uses a similar safe plan-and-execute design:
+
+1. Load and normalize the selected dataset.
+2. Ask the LLM for a JSON transform and chart plan.
+3. Validate all transform steps and chart columns against the actual DataFrame.
+4. Execute whitelisted transforms.
+5. Build a Plotly figure dictionary.
+6. Generate a short natural-language chart summary.
+
+The frontend renders the returned figure with Plotly.js.
+
+## Project Structure
+
+```text
+.
+|-- app.py                         # Flask app factory, routes, and request dispatch
+|-- config/
+|   `-- settings.py                # Paths, model names, chunking, retrieval weights
+|-- agents/
+|   |-- data_analysis_agent.py     # Dataset analysis agent
+|   |-- data_visualization_agent.py # Plotly visualization agent
+|   `-- Summarization_agent.py     # PDF and tabular summarization agent
+|-- services/
+|   |-- embeddings.py              # Singleton embedding and reranker models
+|   |-- generation.py              # Groq/LangChain answer generation
+|   |-- ingestion.py               # PDF loading, chunking, FAISS rebuild
+|   |-- retrieval.py               # Hybrid retrieval and reranking
+|   |-- tavily_search.py           # Tavily web search wrapper
+|   |-- prompts.py                 # Chat prompt templates
+|   `-- query_logging.py           # Optional LLM call logging helpers
+|-- templates/
+|   |-- home.html                  # Nexus homepage
+|   `-- lexis/index.html           # Lexis app shell
+|-- static/
+|   `-- lexis/
+|       |-- app.js                 # React chatbot UI
+|       `-- style.css              # Lexis design system and layout
+|-- data/
+|   |-- uploads/                   # Uploaded PDFs for RAG
+|   |-- datasets/                  # CSV/Excel files for agents
+|   `-- vectordb/                  # FAISS index and chunks.json
+|-- Logs/                          # Optional JSONL query logs
+`-- requirements.txt
 ```
-
----
-
-## Setup & Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repo-url>
-   cd Lexis
-   ```
-2. **Install Python dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **Set up environment variables:**
-   - Create a `.env` file in the root directory with the following keys:
-     - `GROQ_API_KEY` (for LLM)
-     - `TAVILY_API_KEY` (for web search)
-   - Example:
-     ```env
-     GROQ_API_KEY=your_groq_api_key
-     TAVILY_API_KEY=your_tavily_api_key
-     ```
-4. **Run the app:**
-   ```bash
-   python app.py
-   ```
-5. **Access the app:**
-   - Open [http://localhost:5000](http://localhost:5000) in your browser.
-
----
 
 ## Configuration
 
-All configuration is in `config/settings.py`:
-- **Model names** (embedding, reranker, LLM)
-- **Chunking parameters** (min/max sentences, chars, percentile)
-- **Hybrid retrieval weights**
-- **Directory paths** (uploads, vector DB)
+Primary settings live in `config/settings.py`:
 
----
+- `UPLOAD_DIR`: PDF files used by RAG.
+- `DATASETS_DIR`: CSV/Excel files used by agents.
+- `VECTOR_DB_PATH` and `CHUNK_STORE_PATH`: FAISS index and chunk metadata.
+- `EMBEDDING_MODEL_NAME`: default Hugging Face embedding model.
+- `RERANKER_MODEL_NAME`: CrossEncoder reranker.
+- `GENERATION_MODEL_NAME`: default Groq generation model.
+- `HYBRID_SEMANTIC_WEIGHT` and `HYBRID_KEYWORD_WEIGHT`: RAG score blending.
+- `FINAL_TOP_K`: number of reranked chunks returned to generation.
 
-## Backend Services
+Required environment variables:
 
-### app.py (Flask App)
-- **Routes:**
-  - `/` — Main UI (renders `index4.html`)
-  - `/files` — List uploaded files
-  - `/upload` — Upload and ingest PDF
-  - `/remove-file` — Remove a file and update vector DB
-  - `/chat` — Main chat endpoint (supports direct, RAG, and web search modes)
-- **Features:**
-  - Handles all API logic for chat, file management, and document ingestion
-  - Integrates with all services in `services/`
-  - Uses singleton pattern for generator and web search
-  - Rebuilds FAISS index on file removal
+```env
+GROQ_API_KEY=your_groq_api_key
+TAVILY_API_KEY=your_tavily_api_key
+```
 
-### services/
+## Setup
 
-#### db_connector.py
-- **Purpose:** MySQL database connector (for future analytics/data features)
-- **Key Methods:**
-  - `connect_mysql(host, user, password, database)` — Connects to MySQL
-  - `is_connected()` — Checks connection
-  - `get_tables()` — Lists tables
-  - `run_query(query)` — Runs SQL query (returns results or error)
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
 
-#### embeddings.py
-- **Purpose:** Loads embedding and reranker models (singleton)
-- **Key Functions:**
-  - `get_embedding_model()` — Loads HuggingFace embedding model
-  - `get_reranker_model()` — Loads CrossEncoder reranker
-- **Config:** Model names from `settings.py`
+Then open:
 
-#### generation.py
-- **Purpose:** Handles all LLM-based answer generation
-- **Class:** `AnswerGenerator`
-  - `generate_rag(query, context)` — RAG mode (context + query)
-  - `generate_web(query, context)` — Web search mode
-  - `generate_direct(query)` — Direct LLM mode
-- **Uses:** Prompt templates from `prompts.py`
+- Nexus: `http://localhost:5000/`
+- Lexis: `http://localhost:5000/lexis`
 
-#### ingestion.py
-- **Purpose:** PDF ingestion, chunking, and storage
-- **Key Functions:**
-  - `process_pdf(file_path)` — Loads PDF, splits into chunks, stores in FAISS and chunk store
-  - `semantic_chunk_text(text, embedding_model)` — Industry-grade chunking (paragraph/sentence/word fallback, overlap)
-  - `_save_chunk_store(chunks)` — Saves all chunks to JSON
-  - `_build_documents(chunk_entries)` — Converts chunk entries to LangChain Documents
+## Development Notes
 
-#### prompts.py
-- **Purpose:** Centralized prompt templates for all modes
-- **Class:** `PromptTemplates`
-  - `rag_prompt(context, query)` — For RAG mode (context-restricted, conversational)
-  - `web_prompt(context, query)` — For web search (concise, factual)
-  - `direct_prompt(query)` — For direct LLM (no context restriction)
+- The frontend uses React, ReactDOM, Babel standalone, Font Awesome, and Plotly from CDNs, so there is no npm build step.
+- PDF files are indexed into RAG; CSV/Excel files are not indexed and are only used by agents.
+- Removing a PDF rewrites `chunks.json` and rebuilds FAISS from the remaining chunks.
+- Model switching recreates the `AnswerGenerator` instance in memory.
+- The analysis and visualization agents intentionally use LLMs for planning and interpretation only; computation is performed through whitelisted pandas operations.
 
-#### retrieval.py
-- **Purpose:** Hybrid retrieval (semantic + keyword + rerank)
-- **Key Classes/Functions:**
-  - `BM25Index` — Keyword/BM25 index
-  - `retrieve_docs(query, k)` —
-    - Expands query
-    - Loads FAISS and chunk store
-    - Gets semantic and keyword scores
-    - Combines with weights
-    - Reranks with CrossEncoder
-    - Returns top-k LangChain Documents (with all scores in metadata)
+## Version History
 
-#### tavily_search.py
-- **Purpose:** Web search using Tavily API
-- **Class:** `TavilySearch`
-  - `search(query)` — Returns dict with `answer` and `source` (URL)
-  - Requires `TAVILY_API_KEY` in `.env`
-
----
-
-## Frontend
-- **Single-page React app** (in `static/app.js`)
-- **Features:**
-  - Multi-session chat (local storage)
-  - File upload, removal, and listing
-  - Mode toggles (RAG, web, direct, agentic)
-  - Agent autocomplete and suggestions
-  - Modern, responsive UI (see `static/style.css`)
-  - All API calls to Flask endpoints
-- **HTML entry:** `templates/index4.html` (mounts React root)
-
----
-
-## API Endpoints
-
-| Endpoint         | Method | Description                       |
-|------------------|--------|-----------------------------------|
-| `/`              | GET    | Main UI                           |
-| `/files`         | GET    | List uploaded files               |
-| `/upload`        | POST   | Upload and ingest PDF             |
-| `/remove-file`   | POST   | Remove file and update vector DB  |
-| `/chat`          | POST   | Main chat (direct/RAG/web search) |
-
----
-
-## Adding New Features
-
-- **To add a new retrieval mode:**
-  - Add logic in `app.py` `/chat` endpoint
-  - Add new prompt template in `prompts.py`
-  - Update frontend mode toggles if needed
-- **To support new file types:**
-  - Extend `ingestion.py` to handle new formats
-  - Update frontend file upload logic
-- **To add new agents:**
-  - Add agent definition in `static/app.js` (AGENTS array)
-  - Add backend logic if needed
-- **To add analytics/data features:**
-  - Use `db_connector.py` to connect and query MySQL
-
----
-
-## Dependencies
-
-All dependencies are listed in `requirements.txt`. Key packages:
-- Flask, Jinja2, Werkzeug
-- LangChain, langchain_community, langchain_core
-- sentence-transformers, cross-encoder
-- FAISS
-- Tavily
-- React (via CDN), Babel
-
----
+- `1.0.0`: Basic RAG without reranking.
+- `1.0.1`: Improved RAG with reranking and web search.
+- `1.0.2`: Added data analytics agent.
+- `1.0.3`: Added data visualization agent.
+- `1.0.4`: Added runtime model selection.
+- `1.1.0`: Nexus homepage with Lexis as the embedded chatbot application.
 
 ## License
 
 MIT License
-
----
-
-## Credits
-- UI/UX: Inspired by modern chat UIs (ChatGPT, Claude)
-- Backend: Modular, extensible, production-ready
-- Authors: Arya Chakraborty
-
----
-## Version
-- 1.0.0 - Basic Rag without reranking
-- 1.0.1 - Improved Rag with reranking + web search option
-- 1.0.2 - Rag with Data analytics agent
-- 1.0.3 - Introducing Data visualization agent
-- 1.0.4 - Multi model availability
-
----
-
-*This README is designed to be fully self-sufficient for AI tools and developers to understand, extend, or generate new features/code for Lexis.*

@@ -284,7 +284,7 @@ function DatasetUploadModal({ agent, datasets, activeDataset, onClose, onUploade
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const res  = await fetch('/upload-dataset', { method: 'POST', body: fd });
+      const res  = await fetch('/lexis/upload-dataset', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       onUploaded(data.filename);
@@ -874,7 +874,7 @@ function App() {
   const loadDocs = useCallback(async () => {
     setDocsLoading(true);
     try {
-      const res  = await fetch('/files');
+      const res  = await fetch('/lexis/files');
       const data = await res.json();
       setDocs((data.files || []).map((name, i) => ({ id: i, name })));
     } catch { setDocs([]); }
@@ -885,7 +885,7 @@ function App() {
   const loadDatasets = useCallback(async () => {
     setDatasetsLoading(true);
     try {
-      const res  = await fetch('/datasets');
+      const res  = await fetch('/lexis/datasets');
       const data = await res.json();
       setDatasets(data.files || []);
     } catch { setDatasets([]); }
@@ -894,7 +894,7 @@ function App() {
   useEffect(() => { loadDatasets(); }, [loadDatasets]);
 
   useEffect(() => {
-    fetch('/model')
+    fetch('/lexis/model')
       .then(r => r.json())
       .then(d => {
         if (d.model && MODELS.find(m => m.id === d.model)) setSelectedModel(d.model);
@@ -914,7 +914,7 @@ function App() {
     if (modelId === selectedModel || modelSwitching) return;
     setModelSwitching(true);
     try {
-      const res  = await fetch('/model', {
+      const res  = await fetch('/lexis/model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: modelId }),
@@ -1021,7 +1021,7 @@ function App() {
           setMsgs(p => [...p, { id: uid(), sender: 'ai', time: ts(), text: 'Please select or upload a dataset first using the panel that just opened.' }]);
           setTyping(false); return;
         }
-        const res  = await fetch('/agent/visualize', {
+        const res  = await fetch('/lexis/agent/visualize', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, filename: activeDataset }),
         });
@@ -1038,7 +1038,7 @@ function App() {
           setMsgs(p => [...p, { id: uid(), sender: 'ai', time: ts(), text: 'Please select or upload a dataset first using the panel that just opened.' }]);
           setTyping(false); return;
         }
-        const res  = await fetch('/agent/analyze', {
+        const res  = await fetch('/lexis/agent/analyze', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, filename: activeDataset }),
         });
@@ -1050,7 +1050,7 @@ function App() {
         }
 
       } else {
-        const res  = await fetch('/chat', {
+        const res  = await fetch('/lexis/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, rag: ragMode, web_search: webSearch, agent_mode: agentMode, agent: usedAgent?.name || null }),
         });
@@ -1069,7 +1069,7 @@ function App() {
     const file = e.target.files[0]; if (!file) return;
     const fd = new FormData(); fd.append('file', file);
     try {
-      const res = await fetch('/upload', { method: 'POST', body: fd });
+      const res = await fetch('/lexis/upload', { method: 'POST', body: fd });
       if (!res.ok) throw new Error();
       await loadDocs(); notify(`"${file.name}" indexed`);
     } catch { notify('Upload failed — please retry', 'err'); }
@@ -1082,7 +1082,7 @@ function App() {
     setDeletingDoc(true);
     try {
       setDocs(prev => prev.filter(d => d.name !== doc.name));
-      const res  = await fetch('/remove-file', {
+      const res  = await fetch('/lexis/remove-file', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: doc.name }),
       });
@@ -1096,7 +1096,7 @@ function App() {
   /* ── Remove dataset ── */
   const removeDataset = async (filename) => {
     try {
-      await fetch('/remove-dataset', {
+      await fetch('/lexis/remove-dataset', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename }),
       });
